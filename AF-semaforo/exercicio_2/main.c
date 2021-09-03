@@ -14,6 +14,8 @@ void *consumidor_func(void *arg);
 int indice_produtor, indice_consumidor, tamanho_buffer;
 int* buffer;
 
+sem_t licencas;
+
 //Você deve fazer as alterações necessárias nesta função e na função
 //consumidor_func para que usem semáforos para coordenar a produção
 //e consumo de elementos do buffer.
@@ -27,7 +29,9 @@ void *produtor_func(void *arg) {
         else 
             produto = produzir(i); //produz um elemento normal
         indice_produtor = (indice_produtor + 1) % tamanho_buffer; //calcula posição próximo elemento
+        sem_wait(&licencas);
         buffer[indice_produtor] = produto; //adiciona o elemento produzido à lista
+        sem_post(&licencas);
     }
     return NULL;
 }
@@ -35,7 +39,9 @@ void *produtor_func(void *arg) {
 void *consumidor_func(void *arg) {
     while (1) {
         indice_consumidor = (indice_consumidor + 1) % tamanho_buffer; //Calcula o próximo item a consumir
+        sem_wait(&licencas);
         int produto = buffer[indice_consumidor]; //obtém o item da lista
+        sem_post(&licencas);
         //Podemos receber um produto normal ou um produto especial
         if (produto >= 0)
             consumir(produto); //Consome o item obtido.
@@ -63,12 +69,26 @@ int main(int argc, char *argv[]) {
     indice_consumidor = 0;
     buffer = malloc(sizeof(int) * tamanho_buffer);
 
-    // Crie threads e o que mais for necessário para que n_produtores
-    // threads criem cada uma n_itens produtos e o n_consumidores os
-    // consumam.
+    sem_init(&licencas, 0, 1);
 
-    // ....
-    
+    pthread_t prod_thread[n_produtores];
+    pthread_t cons_thread[n_consumidores];
+    for (int i = 0; i < n_produtores || i < n_consumidores; i++) {
+        if (i < n_produtores)
+            pthread_create(&prod_thread[i], NULL, produtor_func, (void *)&itens);
+        if (i < n_consumidores)
+            pthread_create(&cons_thread[i], NULL, consumidor_func, NULL);
+    }
+
+    // Espera threads para produtor_func e consumidor_func
+    for (int i = 0; i < n_produtores; i++)
+        pthread_join(prod_thread[i], NULL);
+    for (int i = 0; i < n_consumidores; i++)
+        pthread_join(cons_thread[i], NULL);
+
+    // Destrói semáforos
+    sem_destroy(&licencas);
+
     //Libera memória do buffer
     free(buffer);
 
